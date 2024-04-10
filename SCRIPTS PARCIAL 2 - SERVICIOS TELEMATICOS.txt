@@ -1,0 +1,408 @@
+SCRIPTS PARCIAL 2 - SERVICIOS TELEMÁTICOS (CRISTIAN DAVID CHACON 2201857)
+
+VAGRANTFILE ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# All Vagrant configuration is done below. The "2" in Vagrant.configure
+# configures the configuration version (we support older styles for
+# backwards compatibility). Please don't change it unless you know what
+# you're doing.
+Vagrant.configure("2") do |config|
+  config.vm.define :servidorFirewall do |servidorFirewall|
+    servidorFirewall.vm.box = "bento/ubuntu-22.04"
+    servidorFirewall.vm.network :private_network, ip: "192.168.50.3"
+    servidorFirewall.vm.hostname = "UFW"
+
+    config.vm.provision "shell", inline: <<-SHELL
+      apt-get update -y
+      apt-get upgrade -y
+      apt-get install bind9 net-tools dnsutils -y
+    SHELL
+    
+  end
+  
+  config.vm.define :servidorSFTP do |servidor|
+    servidor.vm.box = "bento/ubuntu-22.04"
+    servidor.vm.network :private_network, ip: "192.168.50.2"
+    servidor.vm.hostname = "SFTP"
+
+    config.vm.provision "shell", inline: <<-SHELL
+      apt-get update -y
+      apt-get upgrade -y
+      apt-get install net-tools dnsutils apache2 vsftpd -y
+    SHELL
+    
+  end
+end
+
+
+
+PARTE 1 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+vagrant@cliente:~$ sudo vi /etc/systemd/resolved.conf
+# Some examples of DNS servers which may be used for DNS= and FallbackDNS=:
+# Cloudflare: 1.1.1.1#cloudflare-dns.com 1.0.0.1#cloudflare-dns.com 2606:4700:4700::1111#cloudflare-dns.com 2606:4700:4700::1001#cloudflare-dns.com
+# Google:     8.8.8.8#dns.google 8.8.4.4#dns.google 2001:4860:4860::8888#dns.google 2001:4860:4860::8844#dns.google
+# Quad9:      9.9.9.9#dns.quad9.net 149.112.112.112#dns.quad9.net 2620:fe::fe#dns.quad9.net 2620:fe::9#dns.quad9.net
+DNS=1.1.1.1 9.9.9.9
+FallbackDNS=8.8.8.8
+#Domains=
+DNSSEC=yes
+DNSOverTLS=yes
+#MulticastDNS=no                                                            #LLMNR=no
+#Cache=no-negative
+#CacheFromLocalhost=no                                                      #DNSStubListener=yes
+#DNSStubListenerExtra=
+#ReadEtcHosts=yes
+#ResolveUnicastSingleLabel=no
+
+
+
+
+
+vagrant@cliente:~$ sudo vi /etc/NetworkManager/conf.d/10-dns-systemd-resolved.conf
+[main]
+dns=systemd-resolved  
+
+
+
+
+vagrant@cliente:/$ sudo systemctl enable systemd-resolved
+vagrant@cliente:/$ sudo systemctl start systemd-resolved
+vagrant@cliente:/$ sudo systemctl status systemd-resolved
+● systemd-resolved.service - Network Name Resolution
+     Loaded: loaded (/lib/systemd/system/systemd-resolved.service; enabled;>
+     Active: active (running) since Wed 2024-04-10 00:17:03 UTC; 8min ago
+       Docs: man:systemd-resolved.service(8)
+             man:org.freedesktop.resolve1(5)
+             https://www.freedesktop.org/wiki/Software/systemd/writing-netw>
+             https://www.freedesktop.org/wiki/Software/systemd/writing-reso>
+   Main PID: 722 (systemd-resolve)
+     Status: "Processing requests..."
+      Tasks: 1 (limit: 2274)
+     Memory: 8.9M
+        CPU: 107ms
+     CGroup: /system.slice/systemd-resolved.service
+             └─722 /lib/systemd/systemd-resolved
+
+Apr 10 00:17:03 cliente systemd[1]: Starting Network Name Resolution...
+Apr 10 00:17:03 cliente systemd-resolved[722]: Positive Trust Anchors:
+Apr 10 00:17:03 cliente systemd-resolved[722]: . IN DS 20326 8 2 e06d44b80b>
+Apr 10 00:17:03 cliente systemd-resolved[722]: Negative trust anchors: home>
+Apr 10 00:17:03 cliente systemd-resolved[722]: Using system hostname 'clien>
+lines 1-20...skipping...
+● systemd-resolved.service - Network Name Resolution
+     Loaded: loaded (/lib/systemd/system/systemd-resolved.service; enabled; vendor preset: enabled)
+     Active: active (running) since Wed 2024-04-10 00:17:03 UTC; 8min ago
+       Docs: man:systemd-resolved.service(8)
+             man:org.freedesktop.resolve1(5)
+             https://www.freedesktop.org/wiki/Software/systemd/writing-network-configuration-managers
+             https://www.freedesktop.org/wiki/Software/systemd/writing-resolver-clients
+   Main PID: 722 (systemd-resolve)
+     Status: "Processing requests..."
+      Tasks: 1 (limit: 2274)
+     Memory: 8.9M
+        CPU: 107ms
+     CGroup: /system.slice/systemd-resolved.service
+             └─722 /lib/systemd/systemd-resolved
+
+Apr 10 00:17:03 cliente systemd[1]: Starting Network Name Resolution...
+Apr 10 00:17:03 cliente systemd-resolved[722]: Positive Trust Anchors:
+Apr 10 00:17:03 cliente systemd-resolved[722]: . IN DS 20326 8 2 e06d44b80b8f1d39a95c0b0d7c65d08458e880409bbc683457104237c7f8ec8d
+Apr 10 00:17:03 cliente systemd-resolved[722]: Negative trust anchors: home.arpa 10.in-addr.arpa 16.172.in-addr.arpa 17.172.in-addr.arpa 18.172.in-addr.arp>
+Apr 10 00:17:03 cliente systemd-resolved[722]: Using system hostname 'cliente'.
+Apr 10 00:17:03 cliente systemd[1]: Started Network Name Resolution.
+
+
+
+
+vagrant@cliente:/$ sudo systemctl restart NetworkManager
+
+
+
+
+
+vagrant@cliente:/$ resolvectl status
+Global
+           Protocols: -LLMNR -mDNS +DNSOverTLS DNSSEC=yes/supported
+    resolv.conf mode: stub
+  Current DNS Server: 1.1.1.1
+         DNS Servers: 1.1.1.1 9.9.9.9
+Fallback DNS Servers: 8.8.8.8
+
+Link 2 (eth0)
+    Current Scopes: DNS
+         Protocols: +DefaultRoute +LLMNR -mDNS +DNSOverTLS
+                    DNSSEC=yes/supported
+Current DNS Server: 10.0.2.3
+       DNS Servers: 10.0.2.3
+
+Link 3 (eth1)
+Current Scopes: none
+     Protocols: -DefaultRoute +LLMNR -mDNS +DNSOverTLS DNSSEC=yes/supported
+
+
+
+
+vagrant@cliente:/$ resolvectl query drivemeca.com
+drivemeca.com: 162.241.226.115                 -- link: eth0
+
+-- Information acquired via protocol DNS in 585.2ms.
+-- Data is authenticated: no; Data was acquired via local or encrypted transport: yes
+-- Data from: network
+
+
+
+
+vagrant@cliente:/$ sudo apt install wireshark
+Reading package lists... Done
+Building dependency tree... Done
+Reading state information... Done
+wireshark is already the newest version (3.6.2-2).
+0 upgraded, 0 newly installed, 0 to remove and 134 not upgraded.
+
+
+
+
+
+vagrant@cliente:/$ sudo resolvectl flush-caches
+
+
+
+
+
+(Se procede a usar WireShark con el filtro tcp.port == 853 para ver las consultas DNS por sobre TLS)
+
+
+
+
+PARTE 2 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+root@UFW:~# ip a
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host
+       valid_lft forever preferred_lft forever
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether 08:00:27:3b:cf:90 brd ff:ff:ff:ff:ff:ff
+    altname enp0s3
+    inet 192.168.1.18/24 metric 100 brd 192.168.1.255 scope global dynamic eth0
+       valid_lft 82028sec preferred_lft 82028sec
+    inet6 fe80::a00:27ff:fe3b:cf90/64 scope link
+       valid_lft forever preferred_lft forever
+3: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+    link/ether 08:00:27:b9:6f:f3 brd ff:ff:ff:ff:ff:ff
+    altname enp0s8
+    inet 192.168.50.3/24 brd 192.168.50.255 scope global eth1
+       valid_lft forever preferred_lft forever
+    inet6 fe80::a00:27ff:feb9:6ff3/64 scope link
+       valid_lft forever preferred_lft forever
+
+
+
+
+root@SFTP:~# vi /etc/vsftpd.conf
+# Example config file /etc/vsftpd.conf
+#
+# The default compiled in settings are fairly paranoid. This sample file
+# loosens things up a bit, to make the ftp daemon more usable.
+# Please see vsftpd.conf.5 for all compiled in defaults.
+#
+# READ THIS: This example file is NOT an exhaustive list of vsftpd options.
+# Please read the vsftpd.conf.5 manual page to get a full idea of vsftpd's
+# capabilities.
+#
+#
+# Run standalone?  vsftpd can run either from an inetd or as a standalone
+# daemon started from an initscript.
+listen=NO
+listen_port=21
+#
+# This directive enables listening on IPv6 sockets. By default, listening
+# on the IPv6 "any" address (::) will accept connections from both IPv6
+# and IPv4 clients. It is not necessary to listen on *both* IPv4 and IPv6
+# sockets. If you want that (perhaps because you want to listen on specific
+# addresses) then you must run two copies of vsftpd with two configuration
+# files.
+listen_ipv6=YES
+#
+# Allow anonymous FTP? (Disabled by default).
+anonymous_enable=YES
+#
+# Uncomment this to allow local users to log in.
+local_enable=YES
+
+
+
+
+
+vagrant@SFTP:~$ sudo systemctl status vsftpd
+● vsftpd.service - vsftpd FTP server
+     Loaded: loaded (/lib/systemd/system/vsftpd.service; enabled; vendor pr>
+     Active: active (running) since Tue 2024-04-09 22:35:28 UTC; 39min ago
+    Process: 1467 ExecStartPre=/bin/mkdir -p /var/run/vsftpd/empty (code=ex>
+   Main PID: 1468 (vsftpd)
+      Tasks: 1 (limit: 2274)
+     Memory: 860.0K
+        CPU: 27ms
+     CGroup: /system.slice/vsftpd.service
+             └─1468 /usr/sbin/vsftpd /etc/vsftpd.conf
+
+Apr 09 22:35:28 SFTP systemd[1]: Starting vsftpd FTP server...
+Apr 09 22:35:28 SFTP systemd[1]: Started vsftpd FTP server.
+vagrant@SFTP:~$ sudo systemctl restart vsftpd
+
+
+
+
+
+EN EL Server UFW (FIREWALL)
+root@UFW:~# sudo ufw allow ssh
+root@UFW:~# sudo ufw enable
+
+
+
+
+
+root@UFW:~# vi /etc/ufw/sysctl.conf
+#
+# Configuration file for setting network variables. Please note these settings
+# override /etc/sysctl.conf and /etc/sysctl.d. If you prefer to use
+# /etc/sysctl.conf, please adjust IPT_SYSCTL in /etc/default/ufw. See
+# Documentation/networking/ip-sysctl.txt in the kernel source code for more
+# information.
+#
+
+# Uncomment this to allow this host to route packets between interfaces
+net/ipv4/ip_forward=1
+#net/ipv6/conf/default/forwarding=1
+#net/ipv6/conf/all/forwarding=1
+
+# Disable ICMP redirects. ICMP redirects are rarely used but can be used in
+# MITM (man-in-the-middle) attacks. Disabling ICMP may disrupt legitimate
+# traffic to those sites.
+net/ipv4/conf/all/accept_redirects=0
+net/ipv4/conf/default/accept_redirects=0
+net/ipv6/conf/all/accept_redirects=0
+net/ipv6/conf/default/accept_redirects=0
+
+# Ignore bogus ICMP errors
+net/ipv4/icmp_echo_ignore_broadcasts=1
+net/ipv4/icmp_ignore_bogus_error_responses=1
+net/ipv4/icmp_echo_ignore_all=0
+
+# Don't log Martian Packets (impossible addresses)
+# packets
+net/ipv4/conf/all/log_martians=0
+net/ipv4/conf/default/log_martians=0
+
+
+
+
+
+
+
+root@UFW:~# vi /etc/ufw/before.rules
+#
+# rules.before
+#
+# Rules that should be run before the ufw command line added rules. Custom
+# rules should be added to one of these chains:
+#   ufw-before-input
+#   ufw-before-output
+#   ufw-before-forward
+#
+
+# NAT table rules
+*nat
+:POSTROUTING ACCEPT [0:0]
+
+# Forward traffic from port 8000 to port 8080.
+-A PREROUTING -p tcp --dport 21 -j DNAT --to-destination 192.168.50.2:21
+
+# Don’t masquerade local traffic.
+-A POSTROUTING -s 192.168.50.0/24 -j MASQUERADE
+-A POSTROUTING -s 192.168.1.0/24 -j MASQUERADE
+
+COMMIT
+
+# Don't delete these required lines, otherwise there will be errors
+*filter
+:ufw-before-input - [0:0]
+:ufw-before-output - [0:0]
+:ufw-before-forward - [0:0]
+:ufw-not-local - [0:0]
+# End required lines
+
+
+# allow all on loopback
+-A ufw-before-input -i lo -j ACCEPT
+-A ufw-before-output -o lo -j ACCEPT
+
+# quickly process packets for which we already have a connection
+-A ufw-before-input -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A ufw-before-output -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A ufw-before-forward -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+
+
+
+
+
+root@UFW:~# vi /etc/default/ufw
+# /etc/default/ufw
+#
+
+# Set to yes to apply rules to support IPv6 (no means only IPv6 on loopback
+# accepted). You will need to 'disable' and then 'enable' the firewall for
+# the changes to take affect.
+IPV6=yes
+
+# Set the default input policy to ACCEPT, DROP, or REJECT. Please note that if
+# you change this you will most likely want to adjust your rules.
+DEFAULT_INPUT_POLICY="DROP"
+
+# Set the default output policy to ACCEPT, DROP, or REJECT. Please note that if
+# you change this you will most likely want to adjust your rules.
+DEFAULT_OUTPUT_POLICY="ACCEPT"
+
+# Set the default forward policy to ACCEPT, DROP or REJECT.  Please note that
+# if you change this you will most likely want to adjust your rules
+DEFAULT_FORWARD_POLICY="ACCEPT"
+
+
+
+
+
+
+root@UFW:~# ufw allow 21/tcp
+Skipping adding existing rule
+Skipping adding existing rule (v6)
+
+
+
+
+
+
+root@UFW:~# ufw disable && ufw enable
+Firewall stopped and disabled on system startup
+-bash: ufw enable: command not found
+root@UFW:~# ufw enable
+Command may disrupt existing ssh connections. Proceed with operation (y|n)? y
+Firewall is active and enabled on system startup
+
+
+
+
+
+desde el CMD de Windows
+
+C:\Users\crist>ftp 192.168.1.18
+Conectado a 192.168.1.18
+220 (vsFTPd 3.0.5)
+200 Always in UTF8 mode.
+Usuario (192.168.1.18:(none)):
+
