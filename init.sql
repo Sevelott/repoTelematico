@@ -10,6 +10,15 @@ CREATE TABLE users (
     password varchar(255)
 );
 
+CREATE TABLE products (
+    id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    name varchar(255),
+    price float,
+    description varchar(255)
+);
+
+
+INSERT INTO products VALUES(null, "guitarra", "100", "roja");
 
 INSERT INTO users VALUES(null, "juan", "juan@gmail.com", "juan", "123"),
     (null, "maria", "maria@gmail.com", "maria", "456");
