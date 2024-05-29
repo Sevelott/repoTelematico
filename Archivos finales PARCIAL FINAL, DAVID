@@ -1,0 +1,210 @@
+* ~~~~~~~~~~~~~~~~~ DE AWS ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ *
+#docker-compose.yml 
+version: "2"
+services:
+  app:
+    build:
+      context: webapp
+      dockerfile: Dockerfile
+    links:
+      - db
+    ports:
+      - "5000:5000"
+
+  db:
+    image: mysql:5.7
+    ports:
+      - "32000:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#Dockerfile
+FROM python:3.6
+
+EXPOSE 5000
+ENV FLASK_APP=run.py
+
+WORKDIR /app
+
+COPY . /app
+COPY requirements.txt /app
+
+RUN pip install -r requirements.txt
+
+COPY run.py /app
+CMD ["python3", "-m", "flask", "run", "--host=0.0.0.0"]
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#config.py 
+class Config:
+    MYSQL_HOST = 'db'
+    MYSQL_USER = 'root'
+    MYSQL_PASSWORD = 'root'
+    MYSQL_DB = 'myflaskapp'
+    SQLALCHEMY_DATABASE_URI = f'mysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:3306/{MYSQL_DB}'
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#./nginx/sites-available$ cat final 
+server {
+    listen 80;
+    server_name final.com;
+
+    location / {
+        proxy_pass http://localhost:5000; # Replace 8080 with your app's internal Docker port
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+#./nginx/sites-enabled$ cat final 
+server {
+    listen 80;
+    server_name final.com;
+
+    location / {
+        proxy_pass http://localhost:5000; # Replace 8080 with your app's internal Docker port
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#requirements.txt 
+Flask
+mysql-connector
+flask-cors
+Flask-MySQLdb
+Flask-SQLAlchemy
+
+
+
+
+* ~~~~~~~~~~~~~~~~~ DE SERVER LOCAL 192.168.50.3 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ *
+vagrant@servidor:~/prometheus-2.42.0.linux-amd64$ tree
+.
+├── console_libraries
+│   ├── menu.lib
+│   └── prom.lib
+├── consoles
+│   ├── index.html.example
+│   ├── node-cpu.html
+│   ├── node-disk.html
+│   ├── node.html
+│   ├── node-overview.html
+│   ├── prometheus.html
+│   └── prometheus-overview.html
+├── LICENSE
+├── node_exporter-1.8.1.linux-amd64
+│   ├── LICENSE
+│   └── NOTICE
+├── node_exporter-1.8.1.linux-amd64.tar.gz
+├── NOTICE
+├── prometheus
+├── prometheus.yml
+└── promtool
+
+3 directories, 17 files
+
+
+
+vagrant@servidor:/usr/local/bin$ tree
+.
+├── flask
+├── node_exporter
+├── prometheus
+└── promtool
+
+0 directories, 4 files
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#prometheus.yml
+# my global config
+global:
+  scrape_interval: 15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+  evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+  # scrape_timeout is set to the global default (10s).
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
+
+# Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+# A scrape configuration containing exactly one endpoint to scrape:
+# Here it's Prometheus itself.
+scrape_configs:
+  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+  - job_name: "prometheus"
+
+    # metrics_path defaults to '/metrics'
+    # scheme defaults to 'http'.
+
+    static_configs:
+      - targets: ["localhost:9090"]
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+vagrant@servidor:/etc/systemd/system$ cat prometheus.service
+[Unit]
+Description=Prometheus
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=prometheus
+Group=prometheus
+Type=simple
+ExecStart=/usr/local/bin/prometheus \
+    --config.file /etc/prometheus/prometheus.yml \
+    --storage.tsdb.path /var/lib/prometheus/ \
+    --web.console.templates=/etc/prometheus/consoles \
+    --web.console.libraries=/etc/prometheus/console_libraries
+
+[Install]
+WantedBy=multi-user.target
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+vagrant@servidor:/etc/prometheus$ cat prometheus.yml
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: node
+    static_configs:
+      - targets: ["192.168.50.3:9100"]
+
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+vagrant@servidor:/etc/systemd/system$ cat node_exporter.service
+[Unit]
+Description=Node Exporter
+After=network.target
+
+[Service]
+User=node_exporter
+Group=node_exporter
+Type=simple
+ExecStart=/usr/local/bin/node_exporter
+
+[Install]
+WantedBy=multi-user.target
